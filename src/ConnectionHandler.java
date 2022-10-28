@@ -1,4 +1,3 @@
-import netscape.javascript.JSObject;
 import org.json.simple.JSONObject;
 
 import java.io.*;
@@ -15,6 +14,8 @@ public class ConnectionHandler implements Runnable{
     }
     @Override
     public void run() {
+        String room = null;
+
         HTTPRequest request = new HTTPRequest ( client_);
         request.doit();
 
@@ -22,6 +23,7 @@ public class ConnectionHandler implements Runnable{
         HashMap headers = request.getHeaders();
 
         HTTPResponse response = new HTTPResponse( client_, filename, headers );
+
         try {
             response.doit();
         } catch (IOException e) {
@@ -32,7 +34,8 @@ public class ConnectionHandler implements Runnable{
             throw new RuntimeException(e);
         }
 
-        if( response.getIsWsResponse() ){
+
+        if( request.isWsRequest() ){
             while (true) {
                 // READ WebSocket MESSAGE
                 DataInputStream message = null;
@@ -76,7 +79,7 @@ public class ConnectionHandler implements Runnable{
                         decodedData[i] = (byte) (encodedData[i] ^ maskingKey[i % 4]);
                     }
                     decodedString = new String(decodedData, StandardCharsets.UTF_8);
-                    System.out.println(decodedString);
+                    System.out.println( "decode: " + decodedString);
 
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -85,68 +88,31 @@ public class ConnectionHandler implements Runnable{
                 // SEND RESPONSE TO WSs
 
                 // create json object
-                String requestType = decodedString.split(" ")[0];
-                String room = "";
+                String firstRequestString = decodedString.split(" ")[0];
                 String user = "";
                 JSONObject jsonObject = new JSONObject();
 
                 // save json's key-value based on request type
-                if( requestType.equals("join") || requestType.equals("leave") ){
+                if( firstRequestString.equals("join") || firstRequestString.equals("leave") ){
                     room = decodedString.split(" ")[2];
                     user = decodedString.split(" ")[1];
-                    jsonObject.put("type", requestType );
+                    jsonObject.put("type", firstRequestString );
                     jsonObject.put("room", room );
                     jsonObject.put("user", user );
-                    System.out.println( jsonObject );
 
                     // output the frame object
-                    try {
-                        OutputStream outputStream = client_.getOutputStream();
-                        // step 1: FIN + opcode
-                        outputStream.write( (byte) 0x81 );
+                    outputFrameObject(client_, jsonObject);
 
-                        // step 2: mask + payload length
-                        byte[] payloadData = jsonObject.toJSONString().getBytes();
-                        System.out.println("jsonObject.toJSONString():" + jsonObject.toJSONString()); // test
-                        System.out.println("payloadData: " + payloadData); // test
-
-                        if( payloadData.length <= 125 ){
-                            outputStream.write( (byte)(payloadData.length & 0x7F) );
-                        }else if( (payloadData.length >= 126) && payloadData.length < Math.pow(2,16)){
-                            outputStream.write( (byte)0x7E );
-                            outputStream.write( (byte) ( (payloadData.length >> 8) & 0xFF) );
-                            outputStream.write( (byte) (payloadData.length & 0xFF) );
-                        }else if( payloadData.length >= Math.pow(2,16) ){
-                            outputStream.write( (byte)0x7F );
-                            for( int i = 7; i >= 0; i-- ){
-                                outputStream.write( (byte) ( (payloadData.length >> (8*i) ) & 0xFF) );
-                            }
-                        }
-                        // step 3: payload data
-                        System.out.println("** line before outputStream.write(payloadData) **"); // for test
-                        outputStream.write(payloadData); // THIS CAUSE ERROR !!!????? why client will send one more msg "�WebSocket Protocol Error"
-                        System.out.println("** line after outputStream.write(payloadData) **"); // for test
-                        outputStream.flush();
-
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-
-                }else if( requestType.equals("message") ){
-                    jsonObject.put("message", requestType );
-                    jsonObject.put("user", user );
-                    jsonObject.put("room", room );
+                }else{
+                    jsonObject.put("type", "Message" );
+                    jsonObject.put("user", firstRequestString );
+                    jsonObject.put("room", room ); // how to get room num?
                     jsonObject.put("message", decodedString.split(" ")[1]);
 
                     // output the frame object (same as above)
-
-                }else{
-                    System.out.println("error: type is not join/leave/message");
-                    System.out.println("decodedString: " + decodedString);
+                    outputFrameObject(client_, jsonObject);
 
                 }
-
-
 
             }
 
@@ -159,5 +125,37 @@ public class ConnectionHandler implements Runnable{
             }
         }
 
+    }
+
+    private static void outputFrameObject(Socket client_, JSONObject jsonObject){
+        // output the frame object
+        try {
+            OutputStream outputStream = client_.getOutputStream();
+            // step 1: FIN + opcode
+            outputStream.write( (byte) 0x81 );
+
+            // step 2: mask + payload length
+            byte[] payloadData = jsonObject.toString().getBytes();
+            System.out.println("JSONString:" + jsonObject.toJSONString()); // test
+
+            if( payloadData.length <= 125 ){
+                outputStream.write( (byte)(payloadData.length & 0x7F) );
+            }else if( (payloadData.length >= 126) && payloadData.length < Math.pow(2,16)){
+                outputStream.write( (byte)0x7E );
+                outputStream.write( (byte) ( (payloadData.length >> 8) & 0xFF) );
+                outputStream.write( (byte) (payloadData.length & 0xFF) );
+            }else if( payloadData.length >= Math.pow(2,16) ){
+                outputStream.write( (byte)0x7F );
+                for( int i = 7; i >= 0; i-- ){
+                    outputStream.write( (byte) ( (payloadData.length >> (8*i) ) & 0xFF) );
+                }
+            }
+            // step 3: payload data
+            outputStream.write(payloadData); // THIS CAUSE ERROR !!!????? why client will send one more msg "�WebSocket Protocol Error"
+            outputStream.flush();
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

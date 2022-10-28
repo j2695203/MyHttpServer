@@ -55,7 +55,7 @@ public class HTTPResponse {
             pw.println("HTTP/1.1 " + result);
             pw.println("Content-type: text/" + typeName );
             pw.println("Content-Length:" + file.length() );
-            pw.println("\n");
+            pw.print("\n");
 
             pw.flush();
 
@@ -64,7 +64,7 @@ public class HTTPResponse {
             for( int i = 0; i < file.length(); i++ ) {
                 pw.write( fileInputStream.read() );
                 pw.flush();
-                Thread.sleep( 0 ); // Maybe add <- if images are still loading too quickly...
+//                Thread.sleep( 0 ); // Maybe add <- if images are still loading too quickly...
             }
 
         }else{
@@ -83,7 +83,7 @@ public class HTTPResponse {
             pw.println("Upgrade: websocket");
             pw.println("Connection: Upgrade");
             pw.println("Sec-WebSocket-Accept: " + encodedKey );
-            pw.println("\n");
+            pw.print("\n");
 
             pw.flush();
 

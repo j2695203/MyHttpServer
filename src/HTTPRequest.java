@@ -9,6 +9,8 @@ public class HTTPRequest {
     private String filename_;
     private HashMap<String, String> headers_ = new HashMap<>();
 
+    private boolean isWS_ = false;
+
 
     HTTPRequest ( Socket clientSocket ){
         client_ = clientSocket;
@@ -29,9 +31,14 @@ public class HTTPRequest {
                 line = sc.nextLine();    // read next header line
                 System.out.println(line);
                 if( !line.equals("")){   // if the line is not blank, save data to hashmap
-                    String key = line.split(": ")[0];
-                    String value = line.split(": ")[1];
-                    headers_.put( key, value );
+                    String[] mapsplit = line.split(": ");
+                    headers_.put(mapsplit[0], mapsplit[1]);
+//                    String key = line.split(": ")[0];
+//                    String value = line.split(": ")[1];
+//                    headers_.put( key, value );
+                }
+                if(headers_.containsKey("Sec-WebSocket-Key")){
+                    isWS_ = true;
                 }
             }
         } catch (
@@ -46,11 +53,12 @@ public class HTTPRequest {
     }
 
     public boolean isWsRequest(){
-        if( headers_.containsKey("Sec-WebSocket-Key") ){
-            return true;
-        }else{
-            return false;
-        }
+//        if( headers_.containsKey("Sec-WebSocket-Key") ){
+//            return true;
+//        }else{
+//            return false;
+//        }
+        return isWS_;
     }
 
     public HashMap<String, String> getHeaders() {
