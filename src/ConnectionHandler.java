@@ -7,23 +7,23 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 
 public class ConnectionHandler implements Runnable{
-    private Socket client_;
-//    private String path; // filename
+    private Socket clientSocket_;
     ConnectionHandler( Socket clientSocket){
-        client_ = clientSocket;
+        clientSocket_ = clientSocket;
     }
     @Override
     public void run() {
-        String room = null;
+        String roomName = null;
 
-        HTTPRequest request = new HTTPRequest ( client_);
+        // HTTP REQUEST
+        HTTPRequest request = new HTTPRequest (clientSocket_);
         request.doit();
 
         String filename = request.getFilename();
         HashMap headers = request.getHeaders();
 
-        HTTPResponse response = new HTTPResponse( client_, filename, headers );
-
+        // HTTP RESPONSE
+        HTTPResponse response = new HTTPResponse(clientSocket_, filename, headers );
         try {
             response.doit();
         } catch (IOException e) {
@@ -34,20 +34,21 @@ public class ConnectionHandler implements Runnable{
             throw new RuntimeException(e);
         }
 
-
+        // DEAL WITH WEB SOCKET
         if( request.isWsRequest() ){
             while (true) {
-                // READ WebSocket MESSAGE
-                DataInputStream message = null;
-                String decodedString;
 
+                String decodedString;
                 try {
-                    message = new DataInputStream(client_.getInputStream());
+
+                    // READ WS (encoded) REQUEST
+
+                    DataInputStream wsRequest = new DataInputStream(clientSocket_.getInputStream());
 
                     // step 1: check if masked
                     boolean isMasked = false;
                     byte[] twoBytes = new byte[2];
-                    twoBytes = message.readNBytes(2);
+                    twoBytes = wsRequest.readNBytes(2);
                     if ((twoBytes[1] & 0x80) != 0) {
                         isMasked = true;
                     }
@@ -58,104 +59,93 @@ public class ConnectionHandler implements Runnable{
                     if ((twoBytes[1] & 0x7F) <= 125) {
                         payloadLength = (twoBytes[1] & 0x7F);
                     } else if ((twoBytes[1] & 0x7F) == 126) {
-                        payloadLength = message.readShort();
+                        payloadLength = wsRequest.readShort();
                     } else if ((twoBytes[1] & 0x7F) == 127) {
-                        payloadLength = (int) message.readLong();
+                        payloadLength = (int) wsRequest.readLong();
                     }
                     System.out.println("length:" + (twoBytes[1] & 0x7F));
 
-                    // step 3: check if reading masking key
+                    // step 3: check masking key if isMasked
                     byte[] maskingKey = new byte[4];
                     if (isMasked) {
-                        maskingKey = message.readNBytes(4);
+                        maskingKey = wsRequest.readNBytes(4);
                     }
                     System.out.println("maskingKey: " + maskingKey[0] + " " + maskingKey[1] + " " + maskingKey[2] + " " + maskingKey[3]);
 
-                    // step 4: read payload data based on length
+                    // step 4: read payload data based on length, and decode it
                     byte[] encodedData;
                     byte[] decodedData = new byte[payloadLength];
-                    encodedData = message.readNBytes(payloadLength);
+                    encodedData = wsRequest.readNBytes(payloadLength);
                     for (int i = 0; i < encodedData.length; i++) {
                         decodedData[i] = (byte) (encodedData[i] ^ maskingKey[i % 4]);
                     }
                     decodedString = new String(decodedData, StandardCharsets.UTF_8);
                     System.out.println( "decode: " + decodedString);
 
+
+                    // SEND RESPONSE TO WSs (all clients)
+
+                    // create json object
+                    String firstRequestString = decodedString.split(" ")[0];
+                    String userName = "";
+                    JSONObject jsonObject = new JSONObject();
+                    Room clientRoom = null;
+
+                    // save in json based on request type
+
+                    // if it's "join/leave" request
+                    if( firstRequestString.equals("join") || firstRequestString.equals("leave") ){
+                        // save in json
+                        roomName = decodedString.split(" ")[2];
+                        userName = decodedString.split(" ")[1];
+                        jsonObject.put("type", firstRequestString );
+                        jsonObject.put("room", roomName );
+                        jsonObject.put("user", userName );
+
+                        // get a new/exist room
+                        clientRoom = Room.getRoom(roomName);
+
+                        // add/remove the clientSocket in this room
+                        if( firstRequestString.equals("join") ){
+                            clientRoom.addClient( clientSocket_ );
+                        }else{
+                            clientRoom.removeClient( clientSocket_ );
+                        }
+
+                        // send msg to all WSs in the room ( someone join/leave )
+                        clientRoom.sendOldUsersToNewClient( clientSocket_, jsonObject );
+                        clientRoom.sendNewMsgToAllClient( jsonObject );
+
+                    // if it's "message" request
+                    }else{
+                        // find user's room
+                        Room emptyRoom = new Room();
+                        clientRoom = emptyRoom.getSocketRoom( clientSocket_ );
+
+                        // save in json
+//                        String messageToRoom = decodedString.split(" ")[1];
+                        String messageToRoom = decodedString.substring( decodedString.indexOf(" ") + 1);
+                        jsonObject.put("type", "message" );
+                        jsonObject.put("user", firstRequestString );
+                        jsonObject.put("room", clientRoom.getRoomName() );
+                        jsonObject.put("message", messageToRoom);
+
+                        // send msg to all WSs in the room ( user's input msg )
+                        clientRoom.sendNewMsgToAllClient( jsonObject );
+
+                    }
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
-
-                // SEND RESPONSE TO WSs
-
-                // create json object
-                String firstRequestString = decodedString.split(" ")[0];
-                String user = "";
-                JSONObject jsonObject = new JSONObject();
-
-                // save json's key-value based on request type
-                if( firstRequestString.equals("join") || firstRequestString.equals("leave") ){
-                    room = decodedString.split(" ")[2];
-                    user = decodedString.split(" ")[1];
-                    jsonObject.put("type", firstRequestString );
-                    jsonObject.put("room", room );
-                    jsonObject.put("user", user );
-
-                    // output the frame object
-                    outputFrameObject(client_, jsonObject);
-
-                }else{
-                    jsonObject.put("type", "Message" );
-                    jsonObject.put("user", firstRequestString );
-                    jsonObject.put("room", room ); // how to get room num?
-                    jsonObject.put("message", decodedString.split(" ")[1]);
-
-                    // output the frame object (same as above)
-                    outputFrameObject(client_, jsonObject);
-
-                }
-
             }
-
-        }else{ // if not webSocket
+        // DEAL WITH NOT WEB SOCKET
+        }else{
             try {
-                client_.close();
+                clientSocket_.close();
             } catch (IOException e) {
-                System.out.println("close client socket fail");
+                System.out.println("close client socket fail"); // test
                 throw new RuntimeException(e);
             }
-        }
-
-    }
-
-    private static void outputFrameObject(Socket client_, JSONObject jsonObject){
-        // output the frame object
-        try {
-            OutputStream outputStream = client_.getOutputStream();
-            // step 1: FIN + opcode
-            outputStream.write( (byte) 0x81 );
-
-            // step 2: mask + payload length
-            byte[] payloadData = jsonObject.toString().getBytes();
-            System.out.println("JSONString:" + jsonObject.toJSONString()); // test
-
-            if( payloadData.length <= 125 ){
-                outputStream.write( (byte)(payloadData.length & 0x7F) );
-            }else if( (payloadData.length >= 126) && payloadData.length < Math.pow(2,16)){
-                outputStream.write( (byte)0x7E );
-                outputStream.write( (byte) ( (payloadData.length >> 8) & 0xFF) );
-                outputStream.write( (byte) (payloadData.length & 0xFF) );
-            }else if( payloadData.length >= Math.pow(2,16) ){
-                outputStream.write( (byte)0x7F );
-                for( int i = 7; i >= 0; i-- ){
-                    outputStream.write( (byte) ( (payloadData.length >> (8*i) ) & 0xFF) );
-                }
-            }
-            // step 3: payload data
-            outputStream.write(payloadData); // THIS CAUSE ERROR !!!????? why client will send one more msg "�WebSocket Protocol Error"
-            outputStream.flush();
-
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 }

@@ -67,16 +67,24 @@ public class HTTPResponse {
 //                Thread.sleep( 0 ); // Maybe add <- if images are still loading too quickly...
             }
 
+//        // send the data (original way)
+//        Path filepath = Paths.get(path);
+//        String content = null;
+//        try {
+//            content = Files.readString(filepath);
+//        } catch (IOException e) {
+//            System.out.println("Unable to find file");
+//            throw new RuntimeException(e);
+//        }
+//        pw.println(content);
+//
+//        pw.flush();
+//        pw.close();
+
         }else{
 
             // Deal with Web Socket, get response key accept
             String encodedKey = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-1").digest((headers_.get("Sec-WebSocket-Key") + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").getBytes("UTF-8")));
-
-//            String responseKey = headers_.get("Sec-WebSocket-Key") + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-//            MessageDigest md = MessageDigest.getInstance("SHA-1");
-//            md.update(responseKey.getBytes());
-//            byte[] digest = md.digest();
-//            String encrypted = Base64.getEncoder().encodeToString(digest);
 
             // print response header
             pw.println("HTTP/1.1 101 Switching Protocols");
@@ -94,20 +102,6 @@ public class HTTPResponse {
             isWsResponse = true;
 
         }
-
-//        // send the data (original way)
-//        Path filepath = Paths.get(path);
-//        String content = null;
-//        try {
-//            content = Files.readString(filepath);
-//        } catch (IOException e) {
-//            System.out.println("Unable to find file");
-//            throw new RuntimeException(e);
-//        }
-//        pw.println(content);
-//
-//        pw.flush();
-//        pw.close();
 
     }
 

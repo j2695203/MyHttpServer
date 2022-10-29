@@ -21,7 +21,7 @@ public class MyHttpServer {
             serverSocket = new ServerSocket(8080);  // create http server with certain port
             while (true) {
 
-                // create client socket
+                // create client socket ( not web socket )
                 Socket clientSocket = serverSocket.accept(); // new client socket every single time
 
                 // create thread

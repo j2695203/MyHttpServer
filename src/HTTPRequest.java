@@ -33,9 +33,6 @@ public class HTTPRequest {
                 if( !line.equals("")){   // if the line is not blank, save data to hashmap
                     String[] mapsplit = line.split(": ");
                     headers_.put(mapsplit[0], mapsplit[1]);
-//                    String key = line.split(": ")[0];
-//                    String value = line.split(": ")[1];
-//                    headers_.put( key, value );
                 }
                 if(headers_.containsKey("Sec-WebSocket-Key")){
                     isWS_ = true;

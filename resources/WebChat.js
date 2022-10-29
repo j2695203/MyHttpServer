@@ -5,6 +5,7 @@ let roomName = document.getElementById('roomName');
 let showPpl = document.getElementById('showPpl');
 let showMsg = document.getElementById('showMsg');
 let msgInput = document.getElementById('msgInput');
+let leaveBtn = document.getElementById('leave');
 
 
 // default value
@@ -15,6 +16,8 @@ roomName.value = "room1";
 userName.addEventListener("keypress", handleRoomKeyPressCB);
 roomName.addEventListener("keypress", handleRoomKeyPressCB);
 msgInput.addEventListener("keypress", handleMsgKeyPressCB);
+leaveBtn.addEventListener("click", handleCloseCB);
+// window.addEventListener("close", handleCloseCB);
 
 // create the websocket
 let ws = new WebSocket("ws://localhost:8080");
@@ -27,12 +30,22 @@ ws.onerror = handleWsErrorCB;
 let wsOpen = false;
 function handleWsConnectCB() {
     wsOpen = true;
-    ws.send("ws.send() test msg from javascript");
+    //ws.send("ws.send() test msg from javascript"); // test
     console.log("Ws open");
 }
 
 function handleWsErrorCB() {
     console.log("error");
+}
+
+/// to be modified!
+function handleCloseCB(){
+    console.log("client leave"); // test
+    isInRoom = false;
+    let pNew = document.createElement('p');
+    pNew.textContent = "Bye!";
+    showMsg.appendChild(pNew);
+    ws.send("leave " + userName.value + " " + roomName.value );
 }
 
 
@@ -47,7 +60,7 @@ function handleSendWsMessageCB( event ) {
         pUser.textContent = ( serverMsg.user );
         pMsg.textContent = ( serverMsg.user + " has joined the room." );
         pUser.setAttribute("id", serverMsg.user );
-        showPpl.appendChild( pUser );
+        showPpl.appendChild( pUser ); // how to show all members previously joined??
         showMsg.appendChild( pMsg );
     }
 
