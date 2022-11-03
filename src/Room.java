@@ -42,10 +42,11 @@ public class Room {
     }
 
     public synchronized void sendOldUsersToNewClient(Socket clientSocket, JSONObject jsonObject ) throws IOException {
-
-        OutputStream outputStream = clientSocket.getOutputStream();
-        for( JSONObject el: responseJoinLeaveJsons){
-            responseWs(outputStream, el);
+        if(jsonObject.get("type").equals("join")){
+            OutputStream outputStream = clientSocket.getOutputStream();
+            for( JSONObject el: responseJoinLeaveJsons){
+                responseWs(outputStream, el);
+            }
         }
         // save responseJson to json array
         responseJoinLeaveJsons.add(jsonObject);

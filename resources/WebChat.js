@@ -42,10 +42,22 @@ function handleWsErrorCB() {
 function handleCloseCB(){
     console.log("client leave"); // test
     isInRoom = false;
+    ws.send("leave " + userName.value + " " + roomName.value );
+
+    let pUsers = document.getElementsByClassName('user');
+    for( let el of pUsers){
+        showPpl.removeChild(el);
+    }
+    let pMsgs = document.getElementsByClassName('msg');
+    for( let el of pMsgs ){
+        showMsg.removeChild(el);
+    }
+
     let pNew = document.createElement('p');
     pNew.textContent = "Bye!";
     showMsg.appendChild(pNew);
-    ws.send("leave " + userName.value + " " + roomName.value );
+
+
 }
 
 
@@ -53,12 +65,20 @@ function handleSendWsMessageCB( event ) {
     // save JSON object into a variable
     let serverMsg = JSON.parse(event.data);
 
+    // display time with every message
+    let d = new Date();
+    let h = d.getHours();
+    let m = d.getMinutes();
+    let s = d.getSeconds();
+
     // handle join event
     if( serverMsg.type === "join" ){
         let pUser = document.createElement("p");
         let pMsg = document.createElement("p");
+        pUser.setAttribute("class", "user");
+        pMsg.setAttribute("class", "msg");
         pUser.textContent = ( serverMsg.user );
-        pMsg.textContent = ( serverMsg.user + " has joined the room." );
+        pMsg.textContent = ( "[ "+h+":"+m+":"+s+" ]  " + serverMsg.user + " has joined the room." );
         pUser.setAttribute("id", serverMsg.user );
         showPpl.appendChild( pUser ); // how to show all members previously joined??
         showMsg.appendChild( pMsg );
@@ -71,14 +91,14 @@ function handleSendWsMessageCB( event ) {
         showPpl.removeChild(pDel);
         // show message
         let pMsg = document.createElement("p");
-        pMsg.textContent = ( serverMsg.user + " has left the room." );
+        pMsg.textContent = ( "[ "+h+":"+m+":"+s+" ]  " + serverMsg.user + " has left the room." );
         showMsg.appendChild( pMsg );
     }
 
     // handle message event
     if( serverMsg.type === "message" ){
         let pMsg = document.createElement("p");
-        pMsg.textContent = ( serverMsg.user + ": " + serverMsg.message );
+        pMsg.textContent = ( "[ "+h+":"+m+":"+s+" ]  " + serverMsg.user + ": " + serverMsg.message );
         showMsg.appendChild( pMsg );
     }
 
