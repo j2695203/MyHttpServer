@@ -64,7 +64,7 @@ public class HTTPResponse {
             for( int i = 0; i < file.length(); i++ ) {
                 pw.write( fileInputStream.read() );
                 pw.flush();
-//                Thread.sleep( 0 ); // Maybe add <- if images are still loading too quickly...
+                Thread.sleep( 0 ); // Maybe add <- if images are still loading too quickly...
             }
 
 //        // send the data (original way)

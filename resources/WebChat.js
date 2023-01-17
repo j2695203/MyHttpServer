@@ -56,8 +56,6 @@ function handleCloseCB(){
     let pNew = document.createElement('p');
     pNew.textContent = "Bye!";
     showMsg.appendChild(pNew);
-
-
 }
 
 
